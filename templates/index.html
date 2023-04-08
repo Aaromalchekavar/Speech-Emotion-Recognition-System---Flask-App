@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Record Audio and Predict Emotion</title>
+    <style>
+        body {
+            background-color: #f2f2f2;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        h1 {
+            margin-top: 50px;
+        }
+        #recordingMessage {
+            font-size: 24px;
+            margin-top: 20px;
+        }
+        #audio {
+            width: 80%;
+            margin-top: 50px;
+        }
+        #btnRecord {
+            background-color: #4CAF50;
+            color: white;
+            font-size: 16px;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            margin-top: 50px;
+            cursor: pointer;
+        }
+        #btnRecord:hover {
+            background-color: #3e8e41;
+        }
+        @media only screen and (max-width: 600px) {
+            #audio {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Record Audio and Predict Emotion</h1>
+    <button id="btnRecord" onclick="startRecording()">Record</button>
+    <p id="recordingMessage"></p>
+    <audio id="audio" controls></audio>
+    <script>
+        var stream;
+        var recorder;
+        var recordingMessage = document.getElementById('recordingMessage');
+        var audio = document.getElementById('audio');
+        var btnRecord = document.getElementById('btnRecord');
+
+        function startRecording() {
+            navigator.mediaDevices.getUserMedia({audio: true}).then(function(s) {
+                stream = s;
+                recorder = new MediaRecorder(stream);
+                recorder.start();
+                recordingMessage.innerHTML = 'Recording...';
+                btnRecord.innerHTML = 'Stop';
+                btnRecord.onclick = stopRecording;
+            }).catch(function(err) {
+                console.log('Error:', err);
+            });
+        }
+
+        function stopRecording() {
+            recorder.stop();
+            btnRecord.parentNode.removeChild(btnRecord);
+            recordingMessage.innerHTML = '';
+            stream.getAudioTracks()[0].stop();
+            recorder.ondataavailable = function(e) {
+                var url = URL.createObjectURL(e.data);
+                audio.src = url;
+                var xhr = new XMLHttpRequest();
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        console.log(xhr.status);
+                        var savedFilePath = xhr.responseText;
+                        predictEmotion(savedFilePath);
+                    }
+                }
+                xhr.open('POST', '/save');
+                xhr.setRequestHeader('Content-Type', 'audio/wav');
+                xhr.send(e.data);
+            }
+        }
+
+        function predictEmotion(savedFilePath) {
+            var xhr = new XMLHttpRequest();
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    console.log(xhr.status);
+                    var emotion = xhr.responseText;
+                    displayEmotion(emotion);
+                }
+            }
+            xhr.open('POST', '/predict');
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.send(JSON.stringify({'audio_file_path': savedFilePath}));
+        }
+
+        function displayEmotion(emotion) {
+            // display the predicted emotion on the webpage
+            var emotionDiv = document.createElement('div');
+            e = JSON.parse(emotion);
+            emotionDiv.innerHTML = 'Predicted emotion: ' + e.emotion;
+            emotionDiv.style.textAlign = 'center';
+            emotionDiv.style.fontWeight = 'bold';
+            emotionDiv.style.color = '#8BC34A';
+            document.body.appendChild(emotionDiv);
+            console.log(emotion);
+        }
+    </script>
+</body>
+</html>
